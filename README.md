@@ -1,4 +1,28 @@
-# GRUPO 167 -  Java - Spring Boot (Proyecto: API REST) 🚀
+# Somos Más — NGO REST API
+
+Educational team project developed during Alkemy's Java acceleration program. This repository preserves the original team attribution and implementation; it is being reviewed as evidence of backend fundamentals, not presented as a production-ready service.
+
+**Stack:** Java 11 · Spring Boot 2.5.1 · Spring Security · Spring Data JPA · MySQL · Maven · JUnit/Mockito · Swagger/OpenAPI.
+
+The source includes user authentication, role-based endpoint rules, content management, pagination, DTOs, soft deletion in several entities, and adapters for Amazon S3 and SendGrid. These integrations require configuration and have not been validated against live providers in this review.
+
+- [Architecture, limitations and interview case study](docs/PORTFOLIO_CASE_STUDY.md)
+- [Application source](src/main/java/com/alkemy/ong)
+- [Test sources](src/test/java/com/alkemy/ong)
+
+## Verification status — 2026-11-14
+
+An offline Maven check with JDK 11 compiled the application and test sources, but test execution was blocked by the missing cached artifact `org.apache.maven.surefire:surefire-testng:2.22.2`. This is **not a passing test run**. The POM also contains duplicate test dependencies and an unpinned TestNG version.
+
+Do not expose this legacy configuration as a public demo before addressing the hardcoded JWT signing key, endpoint authorization gaps, default database credentials and outdated dependencies. Use disposable local data and replace live provider integrations with fakes for tests.
+
+## Personal contribution and team credit
+
+Luciano Lattante participated in the team. A recorded contribution is [Swagger schemas](https://github.com/lucianoLattante/OT167-Java-server/commit/eaa51ebf9ac0adf8fdab1c10afb44c171dadbe99). This does not imply sole authorship. The original contributor list and Spanish project documentation follow.
+
+---
+
+## GRUPO 167 -  Java - Spring Boot (Proyecto: API REST) 🚀
 
 ## El equipo de Desarrollo 🖥️
 
@@ -180,8 +204,7 @@ Además de las caracteristicas descriptas a continucación las entidades cuentan
 
 | METHOD | ROLE_ADMIN                                    |
 |--------|-----------------------------------------------|
-| POST   | http://localhost:8080/auth/addRole/{id}       |
-| POST   | http://localhost:8080/auth/updateRolUser/{id} |
+| PUT    | http://localhost:8080/users/updateRoleUser/{id} |
 | POST   | http://localhost:8080/activities              |
 | PUT    | http://localhost:8080/activities/{id}         |
 | POST   | http://localhost:8080/categories              |
@@ -214,7 +237,7 @@ Además de las caracteristicas descriptas a continucación las entidades cuentan
 ---------------------------
 
 ## 2. Autenticación de Usuarios
-El usuario despues de registrarse y logearse, obteniene un token, el cual es necesario y requerido para acceder a los demás paths, una vez que pasa 30 minutos el token queda desactualizado o vencido, lo que obliga a que el usuario vuelva a generarlo mediante un nuevo login.
+El usuario despues de registrarse y logearse, obteniene un token, el cual es necesario y requerido para acceder a los demás paths, una vez que pasan 10 horas (duración configurada actualmente en JwtUtils) el token queda desactualizado o vencido, lo que obliga a que el usuario vuelva a generarlo mediante un nuevo login.
 
 ### POST (registro)
 	http://localhost:8080/auth/register
@@ -245,15 +268,15 @@ Para acceder a cualquier path que requiera rol ("ROLE_USER" o "ROLE_ADMIN"), una
 
 ![img_1.png](img_1.png)
 
-### POST (actualizar rol de usuario)
+### PUT (actualizar rol de usuario)
 
-	http://localhost:8080/auth/updateRolUser/{id}
+	http://localhost:8080/users/updateRoleUser/{id}
 
 Ejemplo:
 
 Path:
 
-    http://localhost:8080/auth/updateRolUser/1
+    http://localhost:8080/users/updateRoleUser/1
 
 Body:
 
