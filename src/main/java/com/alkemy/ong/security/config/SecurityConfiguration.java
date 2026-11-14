@@ -70,6 +70,7 @@ public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
                 .antMatchers(HttpMethod.GET, "/members").hasRole("ADMIN")
                 .antMatchers(HttpMethod.GET, "/slides").hasRole("ADMIN")
                 .antMatchers(HttpMethod.GET, "/slides/{id}").hasRole("ADMIN")
+                .antMatchers(HttpMethod.DELETE, "/users/{id}").hasRole("ADMIN")
                 .antMatchers(HttpMethod.DELETE, "/categories/{id}").hasRole("ADMIN")
                 .antMatchers(HttpMethod.DELETE, "/members/{id}").hasRole("ADMIN")
                 .antMatchers(HttpMethod.DELETE, "/news/{id}").hasRole("ADMIN")
