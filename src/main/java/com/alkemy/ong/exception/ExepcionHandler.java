@@ -22,6 +22,12 @@ import java.util.Map;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @ControllerAdvice
 public class ExepcionHandler {
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<MessageInfo> accessDenied(HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(new MessageInfo("Access denied", HttpStatus.FORBIDDEN.value(), request.getRequestURI()));
+    }
+
     @Autowired
     private MessageSource messageSource;
 
