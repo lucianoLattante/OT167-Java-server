@@ -1,17 +1,15 @@
 package com.alkemy.ong.utils;
 
 import com.alkemy.ong.enums.TipLog;
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 public class UtilsLog {
-    private static Logger log = Logger.getLogger(UtilsLog.class);
 
-    @SuppressWarnings("rawtypes")
-    public static void registrarInfo(Class clase, TipLog tip, String message)
+    public static void registrarInfo(Class<?> clase, TipLog tip, String message)
     {
-        log = LogManager.getLogger(clase);
+        Logger log = LoggerFactory.getLogger(clase);
 
         switch (tip)
         {
@@ -22,7 +20,7 @@ public class UtilsLog {
                 log.error(message);
                 break;
             case FATAL:
-                log.fatal(message);
+                log.error(message);
                 break;
             case INFO:
                 log.info(message);

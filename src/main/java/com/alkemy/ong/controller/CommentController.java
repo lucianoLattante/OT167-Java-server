@@ -81,14 +81,10 @@ public class CommentController {
             
     })
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> delete(Authentication aut, @PathVariable Long id) {
-        commentService.existId(id);
-        try {
-            commentService.delete(aut, id);
-            return ResponseEntity.ok(messageSource.getMessage("comment.delete.successfully", null, Locale.ENGLISH));
-        } catch (Exception e) {
-            return new ResponseEntity<>(HttpStatus.FORBIDDEN);
-        }
+    public ResponseEntity<?> delete(Authentication authentication, @PathVariable Long id) {
+        commentService.delete(authentication, id);
+        return ResponseEntity.ok(messageSource.getMessage(
+                "comment.delete.successfully", null, "Comment deleted successfully", Locale.ENGLISH));
     }
 
     @Operation(summary = "Get all comments")

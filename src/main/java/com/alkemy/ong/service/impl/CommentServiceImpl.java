@@ -9,6 +9,11 @@ import com.alkemy.ong.model.Comment;
 import com.alkemy.ong.model.News;
 import com.alkemy.ong.repository.CommentRepository;
 import com.alkemy.ong.repository.NewsRepository;
+import com.alkemy.ong.repository.UserRepository;
+import com.alkemy.ong.exception.BadRequestException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import com.alkemy.ong.service.CommentService;
 import org.springframework.data.domain.Page;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +42,7 @@ public class CommentServiceImpl implements CommentService {
     private final MessageSource messageSource;
     private final NewsRepository newsRepository;
     private final PaginationMessage paginationMessage;
+    private final UserRepository userRepository;
 
 
    /*@Override
@@ -55,18 +61,14 @@ public class CommentServiceImpl implements CommentService {
     }*/
 
     @Override
-    public CommentDto updateComment(Long id, CommentDto commentDto) {
-        try {
-            Comment commentExists = commentRepository.findById(id).get();
-
-            Comment commentSaved = commentMapper.commentDto2Entity(commentDto);
-
-            commentSaved.setId(commentExists.getId());
-
-            return commentMapper.commentEntity2Dto(commentRepository.save(commentSaved));
-        } catch (NoSuchElementException e) {
-            throw new NotFoundException(messageSource.getMessage("comment.not.found", null, Locale.ENGLISH));
-        }
+    public CommentDto updateComment(Long id, CommentDto dto) {
+        Comment comment = commentRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Comment not found"));
+        requireOwnerOrAdmin(currentAuthentication(), comment);
+        requireBody(dto);
+        // Author, news, creation time and identity are immutable through this endpoint.
+        comment.setBody(dto.getBody());
+        return commentMapper.commentEntity2Dto(commentRepository.save(comment));
     }
 
     @Override
@@ -78,30 +80,38 @@ public class CommentServiceImpl implements CommentService {
     }
 
     @Override
-    public void delete(Authentication aut, Long id) {
-       try {
-           if (checkId(aut, id)) {
-               Comment entity = commentRepository.getById(id);
-               entity.setDeleted(true);
-               commentRepository.save(entity);
-           }
-       }catch (Exception e){
-           throw new NullPointerException(messageSource.getMessage("comment.not.null", null, Locale.ENGLISH));
-       }
+    public void delete(Authentication authentication, Long id) {
+        Comment comment = commentRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Comment not found"));
+        requireOwnerOrAdmin(authentication, comment);
+        comment.setDeleted(true);
+        commentRepository.save(comment);
     }
 
-    private boolean checkId(Authentication aut, Long id) {
-        String username = aut.getName();
-        var commentEntityOptional = commentRepository.findById(id);
-        if (commentEntityOptional.isPresent()) {
-            Comment comment = commentEntityOptional.get();
-            String emailUserCreator = comment.getUser_id().getEmail();
-            String authorityUser = String.valueOf(aut.getAuthorities().stream().count());
-            return (username.equals(emailUserCreator) || authorityUser.equals("ROLE_ADMIN"));
-        } else {
-            return false;
-          }
+    private Authentication currentAuthentication() {
+        return SecurityContextHolder.getContext().getAuthentication();
+    }
 
+    private void requireOwnerOrAdmin(Authentication authentication, Comment comment) {
+        requireAuthenticated(authentication);
+        boolean admin = authentication.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
+        boolean owner = comment.getUser_id() != null
+                && authentication.getName().equals(comment.getUser_id().getEmail());
+        if (!admin && !owner) throw new AccessDeniedException("Access denied");
+    }
+
+    private void requireAuthenticated(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()
+                || authentication instanceof AnonymousAuthenticationToken) {
+            throw new AccessDeniedException("Authentication required");
+        }
+    }
+
+    private void requireBody(CommentDto dto) {
+        if (dto == null || dto.getBody() == null || dto.getBody().isBlank()) {
+            throw new BadRequestException("Comment body is required");
+        }
     }
 
     @Override
@@ -119,11 +129,15 @@ public class CommentServiceImpl implements CommentService {
     }
 
     @Override
-    public CommentDto save(CommentDto commentDto) {
-
-        Comment commentEntity =  commentRepository.save(commentMapper.commentDto2Entity(commentDto));
-
-        return commentMapper.commentEntity2Dto(commentEntity);
+    public CommentDto save(CommentDto dto) {
+        Authentication authentication = currentAuthentication();
+        requireAuthenticated(authentication);
+        requireBody(dto);
+        var owner = userRepository.findByEmail(authentication.getName());
+        if (owner == null) throw new AccessDeniedException("Unknown account");
+        dto.setUser_id(owner.getId());
+        Comment comment = commentMapper.commentDto2Entity(dto);
+        return commentMapper.commentEntity2Dto(commentRepository.save(comment));
     }
 
 }
