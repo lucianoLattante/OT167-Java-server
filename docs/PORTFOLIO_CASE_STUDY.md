@@ -36,7 +36,7 @@ The application issues JWTs for login/registration and uses a request filter to 
 
 Role updates are handled by **PUT /users/updateRoleUser/{id}**. The earlier POST /auth/updateRolUser route in the README did not match the controller.
 
-Authentication alone does not establish ownership. Endpoint and service authorization require additional tests before this service can be considered safe to expose.
+Authentication alone does not establish ownership. The maintenance now tests user deletion and owner/admin/third-party comment operations; remaining endpoint policies still need review before public exposure.
 
 ### Persistence and consistency
 
@@ -44,35 +44,25 @@ The code uses JPA repositories, service transactions in selected classes and sof
 
 There is no implemented Kafka messaging, transactional outbox, distributed transaction protocol or migration framework in this baseline. Email and S3 operations are external side effects; they cannot be rolled back by a local MySQL transaction. Provider failure behavior needs isolated tests.
 
-## Reproducing verification
+## Executed verification
 
-Use JDK 11, Maven and a disposable local MySQL database. Review the application configuration and replace credential values before any run. Never connect tests to real customer data or live email recipients.
+With Java 11.0.17 and Maven 3.9.0, the selected local offline run passed 36 tests, zero failures/errors/skips:
 
-With dependencies available, the intended commands are:
-
-```bash
-mvn -B -Dtest=NewsServiceTest,UserServiceTest test
-mvn -B verify
+```shell
+mvn -B -Dtest=JwtUtilsSecurityTest,UserDeletionSecurityTest,NewsServiceTest,CommentAuthorizationTest,CommentAuthorizationWebTest test
 ```
 
-The first command selects unit-test classes; it does not run the full suite. The second may load Spring contexts and require database/provider isolation. Do not interpret the existing test source files as proof of passing checks.
+The scope includes JWT validation, user-deletion permissions, owner/admin/third-party comment behavior, immutable comment author/news references, and existing news-service tests. MockMvc uses the actual security chain and services while persistence is mocked. The full legacy suite, MySQL integration, full startup and live providers were not verified.
 
-The review attempted the first command in offline mode. Application and test compilation completed, then Surefire could not resolve `surefire-testng:2.22.2` from the local cache. **No passing unit or integration test result is claimed.** No live S3 or SendGrid calls were made.
+Maintenance replaced the embedded signing key with mandatory validated environment configuration, externalized credentials, corrected account/comment authorization, standardized the JUnit engine and migrated the Log4j 1 adapter to SLF4J. See [security verification and limits](SECURITY_REMEDIATION.md).
 
-Maven also warned about duplicate JUnit/Mockito dependencies and TestNG with version `RELEASE`. A follow-up should standardize the test engine and pin dependencies before introducing CI.
+## Remaining follow-up plan
 
-## Known limitations and follow-up plan
-
-1. Replace the hardcoded signing key with validated environment configuration and test missing/invalid configuration.
-2. Add negative authorization tests for deleting another user and for owner/admin/third-party comment operations.
-3. Correct the administrator authority check in CommentServiceImpl, which compares the authority count to a role name.
-4. Make provider adapters injectable fakes for local tests; disable seeded demo accounts outside a dedicated local profile.
-5. Replace obsolete Log4j 1.x and reconcile overlapping Swagger/test dependencies. Apache records Log4j 1.x as end-of-life: https://logging.apache.org/log4j/1.x/ .
-6. Introduce explicit database migrations. The current `hibernate.dll-auto` spelling must not be treated as a working schema migration strategy.
-7. Move comment filtering from `findAll()` in memory to a paginated repository query.
-8. Add Docker Compose, Testcontainers integration tests and CI once the isolated baseline is reproducible.
-
-These are planned improvements, not completed features.
+- Audit/upgrade the rest of the legacy dependency stack and reconcile overlapping API-documentation libraries.
+- Run the full suite and disposable MySQL integration tests; isolate provider adapters.
+- Review other authorization/ownership policies and seeded accounts before a public demo.
+- Confirm owner credential revocation and deployed secret/session configuration.
+- Add reproducible local infrastructure, migrations and CI where missing.
 
 ## Explaining the project in an interview
 

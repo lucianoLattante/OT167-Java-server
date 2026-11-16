@@ -10,11 +10,21 @@ The source includes user authentication, role-based endpoint rules, content mana
 - [Application source](src/main/java/com/alkemy/ong)
 - [Test sources](src/test/java/com/alkemy/ong)
 
-## Verification status — 2026-11-14
+## Verification and configuration
 
-An offline Maven check with JDK 11 compiled the application and test sources, but test execution was blocked by the missing cached artifact `org.apache.maven.surefire:surefire-testng:2.22.2`. This is **not a passing test run**. The POM also contains duplicate test dependencies and an unpinned TestNG version.
+Selected verification on Java 11.0.17 / Maven 3.9.0:
 
-Do not expose this legacy configuration as a public demo before addressing the hardcoded JWT signing key, endpoint authorization gaps, default database credentials and outdated dependencies. Use disposable local data and replace live provider integrations with fakes for tests.
+```shell
+mvn -B -Dtest=JwtUtilsSecurityTest,UserDeletionSecurityTest,NewsServiceTest,CommentAuthorizationTest,CommentAuthorizationWebTest test
+```
+
+36 tests passed, zero failures/errors/skips. The local run used offline mode and an existing Maven cache. Tests cover JWT validation, account/comment authorization, owner isolation and existing news-service behavior; persistence is mocked. The full legacy suite, MySQL integration, full application startup and live providers were not verified.
+
+The maintenance removes the embedded JWT key, enforces user/comment permissions, externalizes credentials, removes unused TestNG/duplicate declarations and migrates the Log4j 1 adapter to SLF4J. [Security changes and remaining limits](docs/SECURITY_REMEDIATION.md) document the exact scope.
+
+Before application startup, export DB_USERNAME, DB_PASSWORD and JWT_SECRET (Base64 of at least 32 cryptographically random bytes). See [.env.example](.env.example) for names; Spring Boot does not load that file automatically. Email defaults to disabled. Use disposable local data and fake providers during testing.
+
+A public demo still requires remaining legacy dependency upgrades, full integration checks, deployed secret configuration and explicit deployment authorization. The original project notes below preserve the team's documentation.
 
 ## Personal contribution and team credit
 
