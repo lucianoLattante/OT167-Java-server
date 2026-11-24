@@ -18,7 +18,17 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import javax.annotation.PostConstruct;
 import java.io.File;
-import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Iterator;
+import java.util.UUID;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+import com.amazonaws.services.s3.model.ObjectMetadata;
 import java.io.IOException;
 import java.util.Date;
 import java.util.Locale;
@@ -35,29 +45,83 @@ public class PhotoServiceImpl implements PhotoService {
     @Autowired
     private MessageSource messageSource;
     
+    private static final long MAX_UPLOAD_BYTES = 5L * 1024 * 1024;
+
     @Override
     public String uploadImage(MultipartFile multipartFile) {
-
-        String fileUrl = "";
+        Path temp = null;
         try {
-            File file = convertMultiPartToFile(multipartFile);
-            String fileName = generateFileName(multipartFile);
-            fileUrl = amazonS3Configuration.getEndpointUrl() + "/" + amazonS3Configuration.getBucketName() + "/" + fileName;
-            uploadFileTos3bucket(fileName, file);
-            file.delete();
-        } catch (Exception e) {
-            e.printStackTrace();
+            temp = convertMultiPartToFile(multipartFile).toPath();
+            String type = imageType(temp);
+            String key = UUID.randomUUID() + ("image/png".equals(type) ? ".png" : ".jpg");
+            ObjectMetadata metadata = new ObjectMetadata();
+            metadata.setContentType(type);
+            metadata.setContentLength(Files.size(temp));
+            s3client.putObject(new PutObjectRequest(amazonS3Configuration.getBucketName(), key, temp.toFile())
+                    .withMetadata(metadata).withCannedAcl(CannedAccessControlList.PublicRead));
+            return amazonS3Configuration.getEndpointUrl() + "/" + amazonS3Configuration.getBucketName() + "/" + key;
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (IOException | RuntimeException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Image storage unavailable");
+        } finally {
+            if (temp != null) removeTemporaryFile(temp);
         }
-        return fileUrl;
     }
 
     @Override
     public File convertMultiPartToFile(MultipartFile file) throws IOException {
-        File convFile = new File(file.getOriginalFilename());
-        FileOutputStream fos = new FileOutputStream(convFile);
-        fos.write(file.getBytes());
-        fos.close();
-        return convFile;
+        if (file == null || file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Image is required");
+        }
+        if (file.getSize() > MAX_UPLOAD_BYTES) {
+            throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "Image exceeds 5 MiB");
+        }
+        Path temp = Files.createTempFile("ong-upload-", ".img");
+        try (InputStream input = file.getInputStream()) {
+            byte[] bytes = input.readNBytes((int) MAX_UPLOAD_BYTES + 1);
+            if (bytes.length > MAX_UPLOAD_BYTES) {
+                throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "Image exceeds 5 MiB");
+            }
+            Files.write(temp, bytes);
+            return temp.toFile();
+        } catch (IOException | RuntimeException e) {
+            removeTemporaryFile(temp);
+            throw e;
+        }
+    }
+
+    private String imageType(Path file) {
+        try (ImageInputStream stream = ImageIO.createImageInputStream(file.toFile())) {
+            if (stream != null) {
+                Iterator<ImageReader> readers = ImageIO.getImageReaders(stream);
+                if (readers.hasNext()) {
+                    ImageReader reader = readers.next();
+                    try {
+                        reader.setInput(stream, true, true);
+                        String format = reader.getFormatName().toLowerCase(Locale.ROOT);
+                        if (("png".equals(format) || "jpeg".equals(format))
+                                && reader.getWidth(0) <= 4096 && reader.getHeight(0) <= 4096
+                                && reader.read(0) != null) {
+                            return "png".equals(format) ? "image/png" : "image/jpeg";
+                        }
+                    } finally {
+                        reader.dispose();
+                    }
+                }
+            }
+        } catch (IOException | RuntimeException ignored) {
+            // Treat unreadable data as invalid input.
+        }
+        throw new ResponseStatusException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "A valid PNG or JPEG image is required");
+    }
+
+    private void removeTemporaryFile(Path file) {
+        try {
+            Files.deleteIfExists(file);
+        } catch (IOException ignored) {
+            file.toFile().deleteOnExit();
+        }
     }
 
     @Override
@@ -83,10 +147,4 @@ public class PhotoServiceImpl implements PhotoService {
             throw new NotFoundException(messageSource.getMessage("slide.not.found", new Object[]{fileName.toString()}, Locale.ENGLISH));
         }
     }
-
-    private void uploadFileTos3bucket(String fileName, File file) {
-        s3client.putObject(new PutObjectRequest(amazonS3Configuration.getBucketName(), fileName, file)
-                .withCannedAcl(CannedAccessControlList.PublicRead));
-    }
-
 }
