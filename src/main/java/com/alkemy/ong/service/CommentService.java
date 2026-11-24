@@ -14,7 +14,7 @@ public interface CommentService {
 
     CommentDto updateComment(Long id, CommentDto commentDto);
 
-    List<CommentDto> getAllCommentsByIdNews(Long id);
+    List<CommentDto> getAllCommentsByIdNews(Long id, int page);
 
     void delete(Authentication aut, Long id);
 

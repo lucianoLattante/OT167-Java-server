@@ -72,10 +72,10 @@ public class CommentServiceImpl implements CommentService {
     }
 
     @Override
-    public List<CommentDto> getAllCommentsByIdNews(Long id) {
+    public List<CommentDto> getAllCommentsByIdNews(Long id, int page) {
         News news = newsRepository.findById(id).orElseThrow(() -> new NotFoundException(messageSource.getMessage("not.found", null, Locale.ENGLISH)));
 
-        return commentRepository.findAll().stream().filter(comment -> comment.getNews_id().getId().equals(id)).collect(Collectors.toList())
+        return commentRepository.findForNews(id, PageRequest.of(page, SIZE_PAG_10, Sort.by("id")))
                 .stream().map(commentMapper::commentEntity2Dto).collect(Collectors.toList());
     }
 

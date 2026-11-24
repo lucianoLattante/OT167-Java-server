@@ -52,8 +52,9 @@ public class CommentController {
             
     })
     @GetMapping("/posts/{id}/comments")
-    public ResponseEntity<?> getCommentsByIdNews(@PathVariable Long id) {
-        return ResponseEntity.status(HttpStatus.OK).body(commentService.getAllCommentsByIdNews(id));
+    public ResponseEntity<?> getCommentsByIdNews(@PathVariable Long id, @RequestParam(defaultValue = "0") int page) {
+        if (page < 0) return ResponseEntity.badRequest().body("Page must be non-negative");
+        return ResponseEntity.ok(commentService.getAllCommentsByIdNews(id, page));
     }
 
     @Operation(summary = "Update comment by Id")

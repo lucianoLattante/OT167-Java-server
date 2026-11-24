@@ -15,6 +15,10 @@ import javax.persistence.EntityNotFoundException;
 import lombok.Data;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.server.ResponseStatusException;
+import com.alkemy.ong.security.model.UserEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -73,8 +77,18 @@ public class UserController {
             
     })
     @GetMapping("/{id}")
-    public ResponseEntity<UserDto> findUserById(@PathVariable Long id) {
-        return ResponseEntity.ok().body(userMapper.convertUserToDto(userService.findUserById(id).get()));
+    public ResponseEntity<UserDto> findUserById(@PathVariable Long id, Authentication authentication) {
+        boolean admin = authentication.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
+        if (!admin) {
+            UserEntity current = userService.findByEmail(authentication.getName());
+            if (current == null || !id.equals(current.getId())) {
+                throw new AccessDeniedException("User unavailable");
+            }
+        }
+        UserEntity user = userService.findUserById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User unavailable"));
+        return ResponseEntity.ok(userMapper.convertUserToDto(user));
     }
 
     @Operation(summary = "Update a role")
